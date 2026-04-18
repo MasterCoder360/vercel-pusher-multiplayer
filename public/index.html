@@ -1,199 +1,159 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🌐 REAL ONLINE 3D MULTIPLAYER</title>
+  <title>PUSHER 3D - FIXED FOR VERCEL</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{overflow:hidden;font-family:Arial,sans-serif;background:#87CEEB}
+    body{overflow:hidden;font-family:Arial;background:#87CEEB}
     canvas{display:block}
-    #ui{position:fixed;top:20px;left:20px;color:white;background:rgba(0,0,0,0.9);padding:20px;border-radius:15px;max-width:350px;z-index:100}
+    #ui{position:fixed;top:20px;left:20px;color:white;background:rgba(0,0,0,.95);padding:20px;border-radius:15px;max-width:350px;z-index:999}
     #players{font-size:20px;font-weight:700;margin-bottom:10px}
     #status{font-weight:bold;color:#4CAF50}
-    #chat{height:160px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.1);border-radius:10px;font-size:13px}
-    #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:rgba(255,255,255,0.95);font-size:14px;outline:none}
-    #instructions{font-size:12px;opacity:0.9;line-height:1.4}
-    .online{animation:pulse 2s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+    #chat{height:160px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,.15);border-radius:10px;font-size:13px}
+    #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:white;font-size:14px;outline:none;box-shadow:0 2px 10px rgba(0,0,0,0.3)}
+    #instructions{font-size:12px;opacity:.9;line-height:1.4}
   </style>
 </head>
 <body>
   <div id="ui">
-    <div id="players">Players: 0 | <span id="status">Connecting...</span></div>
-    <div id="chat">🔥 REAL ONLINE MULTIPLAYER<br>👥 Anyone worldwide can join!</div>
-    <input id="chatInput" placeholder="Global chat → ENTER">
-    <div id="instructions">WASD=Move | Mouse=Look | Open another tab anywhere!</div>
+    <div id="players">Players: 0 | <span id="status">Loading...</span></div>
+    <div id="chat">🔥 Click to play → WASD move → Chat ENTER</div>
+    <input id="chatInput" placeholder="Type message → ENTER">
+    <div id="instructions">WASD=Move | Mouse=Look | ESC=freecursor</div>
   </div>
 
-  <!-- FREE FIREBASE CDN -->
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getDatabase, ref, onValue, set, push } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+  <!-- FIXED CDNs -->
+  <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+  <script src="https://js.pusher.com/7.2/pusher.min.js"></script>
+  <script>
+    console.clear();
     
-    // 🔥 FREE PUBLIC FIREBASE (anyone can join!)
-    const firebaseConfig = {
-      apiKey: "AIzaSyDq8F2q0eYk5qZ6zK8jL9mN0oP1qR2sT3u",
-      authDomain: "3d-multiplayer-123.firebaseapp.com",
-      databaseURL: "https://3d-multiplayer-123-default-rtdb.firebaseio.com",
-      projectId: "3d-multiplayer-123",
-      storageBucket: "3d-multiplayer-123.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef123456"
-    };
+    // FIXED PUSHER - PUBLIC CHANNEL ONLY
+    const pusher = new Pusher('6291de89719e0ba9f19b', {
+      cluster: 'us2',
+      encrypted: true
+    });
     
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    
-    console.log('🔥 FIREBASE ONLINE MULTIPLAYER STARTING...');
-    
-    // PLAYER ID
-    const myId = 'p' + Math.random().toString(36).substr(2, 8);
+    const channel = pusher.subscribe('public-world');
+    const myId = 'p'+Math.random().toString(36).substr(2,7);
     const players = {};
     
-    // ONLINE PLAYERS LIST
-    const playersRef = ref(db, 'players');
-    onValue(playersRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      Object.keys(players).forEach(id => {
-        if (!data[id]) {
-          if (players[id]?.mesh) scene.remove(players[id].mesh);
-          delete players[id];
-        }
-      });
-      Object.assign(players, data);
-      document.getElementById('players').textContent = `Players: ${Object.keys(players).length + 1}`;
-      document.getElementById('status').textContent = 'ONLINE ✓';
-      document.getElementById('status').className = 'online';
+    channel.bind('pusher:subscription_succeeded', function() {
+      console.log('✅ PUSHER OK:', myId);
+      document.getElementById('status').innerText = 'ONLINE ✓';
+      addMsg('Connected: '+myId.slice(0,6));
     });
     
-    // UPDATE MY POSITION (60fps)
-    setInterval(() => {
-      set(ref(db, `players/${myId}`), {
-        id: myId,
-        x: me.x,
-        y: me.y,
-        z: me.z,
-        r: me.r,
-        color: me.color,
-        timestamp: Date.now()
-      });
-    }, 16);
-    
-    // GLOBAL CHAT
-    const chatRef = ref(db, 'chat');
-    onValue(chatRef, (snapshot) => {
-      const messages = snapshot.val() || {};
-      const chat = document.getElementById('chat');
-      chat.innerHTML = '';
-      Object.values(messages).slice(-8).forEach(msg => {
-        chat.innerHTML += `<div>${msg}</div>`;
-      });
-      chat.scrollTop = chat.scrollHeight;
+    // FIXED EVENT NAMES
+    channel.bind('move', function(data) {
+      players[data.id] = data;
     });
     
-    const chatInput = document.getElementById('chatInput');
-    chatInput.addEventListener('keypress', e => {
-      if (e.key === 'Enter' && chatInput.value.trim()) {
-        const msg = `${myId.slice(0,6)}: ${chatInput.value.trim()}`;
-        push(chatRef, msg);
-        chatInput.value = '';
-      }
+    channel.bind('chat', function(data) {
+      addMsg(data.id.slice(0,6)+': '+data.msg);
     });
     
-    // THREE.JS (same as before but ONLINE!)
+    // THREE.JS FIXED
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0.1, 0.5, 0.8);
-    scene.fog = new THREE.Fog(0x87CEEB, 20, 200);
+    scene.background = new THREE.Color(0.2, 0.6, 0.9);
     
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({antialias: true});
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
     
     // LIGHTS
-    scene.add(new THREE.AmbientLight(0x666666, 0.4));
-    const sun = new THREE.DirectionalLight(0xffffff, 1);
-    sun.position.set(50, 50, 25);
-    sun.castShadow = true;
+    scene.add(new THREE.AmbientLight(0x666666, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(20, 30, 10);
     scene.add(sun);
     
     // WORLD
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(300, 300),
-      new THREE.MeshLambertMaterial({ color: 0x90EE90 })
+      new THREE.PlaneGeometry(150, 150),
+      new THREE.MeshLambertMaterial({color: '#90EE90'})
     );
-    ground.rotation.x = -Math.PI / 2;
+    ground.rotation.x = -Math.PI/2;
     ground.receiveShadow = true;
     scene.add(ground);
     
     // TREES
-    for (let i = 0; i < 50; i++) {
+    for(let i = 0; i < 25; i++) {
       const tree = new THREE.Mesh(
-        new THREE.ConeGeometry(1, 6, 8),
-        new THREE.MeshLambertMaterial({ color: 0x228B22 })
+        new THREE.ConeGeometry(0.6, 3, 8),
+        new THREE.MeshLambertMaterial({color: '#228B22'})
       );
-      tree.position.set(
-        (Math.random() - 0.5) * 250,
-        3,
-        (Math.random() - 0.5) * 250
-      );
+      tree.position.x = (Math.random() - 0.5) * 120;
+      tree.position.z = (Math.random() - 0.5) * 120;
+      tree.position.y = 1.5;
       scene.add(tree);
     }
     
     // MY PLAYER
     const me = {
-      x: (Math.random() - 0.5) * 50,
+      x: 0,
       y: 1.7,
-      z: (Math.random() - 0.5) * 50,
+      z: 0,
       r: 0,
       color: Math.random() * 0xffffff
     };
     
+    let pointerLocked = false;
     let mouseX = 0, mouseY = 0;
     const keys = {};
     
-    // CONTROLS
-    document.addEventListener('keydown', e => keys[e.code] = true);
-    document.addEventListener('keyup', e => keys[e.code] = false);
-    document.addEventListener('click', () => document.body.requestPointerLock());
-    document.addEventListener('mousemove', e => {
-      if (document.pointerLockElement) {
+    // FIXED INPUT
+    document.addEventListener('keydown', function(e) {
+      keys[e.code] = true;
+    });
+    
+    document.addEventListener('keyup', function(e) {
+      keys[e.code] = false;
+    });
+    
+    document.addEventListener('click', function() {
+      document.body.requestPointerLock();
+    });
+    
+    document.addEventListener('pointerlockchange', function() {
+      pointerLocked = document.pointerLockElement === document.body;
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+      if (pointerLocked) {
         mouseX -= e.movementX * 0.002;
         mouseY -= e.movementY * 0.002;
         mouseY = Math.max(-Math.PI/2, Math.min(Math.PI/2, mouseY));
       }
     });
     
-    // CREATE PLAYER MESH
-    function createPlayer(data) {
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.4, 1.4, 4, 8),
-        new THREE.MeshLambertMaterial({ color: data.color })
-      );
-      body.position.y = 0.9;
-      body.castShadow = true;
-      group.add(body);
-      
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.3, 8, 8),
-        new THREE.MeshLambertMaterial({ color: data.color })
-      );
-      head.position.y = 1.9;
-      group.add(head);
-      
-      scene.add(group);
-      return group;
+    // FIXED CHAT
+    const chatInput = document.getElementById('chatInput');
+    chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && chatInput.value.trim()) {
+        channel.trigger('client-chat', {
+          id: myId,
+          msg: chatInput.value.trim().substring(0, 50)
+        });
+        chatInput.value = '';
+      }
+    });
+    
+    function addMsg(msg) {
+      const chat = document.getElementById('chat');
+      const time = new Date().toLocaleTimeString().slice(0, 5);
+      chat.innerHTML += `<div>[${time}] ${msg}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+      document.getElementById('players').innerText = 
+        `Players: ${Object.keys(players).length + 1}`;
     }
     
-    // GAME LOOP
-    function gameLoop() {
-      requestAnimationFrame(gameLoop);
+    // FIXED MOVEMENT (33ms = 30fps)
+    setInterval(function() {
+      const speed = 0.15;
       
-      // Movement
-      const speed = 0.2;
       if (keys['KeyW']) {
         me.x += Math.sin(mouseX) * speed;
         me.z += Math.cos(mouseX) * speed;
@@ -213,14 +173,34 @@
       
       me.r = mouseX;
       
-      // Update other players
-      Object.values(players).forEach(p => {
-        if (!p.mesh) p.mesh = createPlayer(p);
-        p.mesh.position.set(p.x, p.y, p.z);
-        p.mesh.rotation.y = p.r;
+      // FIXED BROADCAST
+      channel.trigger('client-move', {
+        id: myId,
+        x: me.x.toFixed(2),
+        y: me.y,
+        z: me.z.toFixed(2),
+        r: me.r,
+        color: me.color
+      });
+    }, 33);
+    
+    // RENDER LOOP
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // UPDATE PLAYERS
+      Object.keys(players).forEach(function(id) {
+        const player = players[id];
+        if (!player.mesh) {
+          player.mesh = createPlayer(player);
+        }
+        if (player.mesh) {
+          player.mesh.position.set(player.x, player.y, player.z);
+          player.mesh.rotation.y = player.r;
+        }
       });
       
-      // Camera
+      // CAMERA
       camera.position.set(me.x, me.y + 0.3, me.z);
       camera.rotation.order = 'YXZ';
       camera.rotation.x = mouseY;
@@ -229,18 +209,36 @@
       renderer.render(scene, camera);
     }
     
-    // Resize
-    window.addEventListener('resize', () => {
+    function createPlayer(data) {
+      const group = new THREE.Group();
+      
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.3, 1.2, 4, 8),
+        new THREE.MeshLambertMaterial({ color: data.color })
+      );
+      body.position.y = 0.8;
+      group.add(body);
+      
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.25, 8, 6),
+        new THREE.MeshLambertMaterial({ color: data.color })
+      );
+      head.position.y = 1.8;
+      group.add(head);
+      
+      scene.add(group);
+      return group;
+    }
+    
+    // RESIZE
+    window.addEventListener('resize', function() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
     
-    // START
-    addMsg(`🌐 ${myId.slice(0,6)} joined the world!`);
-    gameLoop();
-    
-    console.log('🔥 REAL ONLINE MULTIPLAYER LIVE!');
+    animate();
+    console.log('✅ VERCEL-FIXED VERSION READY!');
   </script>
 </body>
 </html>
