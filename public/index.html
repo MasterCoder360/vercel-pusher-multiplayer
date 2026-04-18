@@ -1,23 +1,193 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>3D Multiplayer - NO CDN DEPENDENCIES</title>
+  <title>3D Multiplayer - FIXED FOREVER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    *{margin:0;padding:0;overflow:hidden;box-sizing:border-box}
-    body{font-family:Arial;background:linear-gradient(135deg,#87CEEB,#98D8C8)}
-    canvas{display:block;width:100vw;height:100vh}
-    #ui{position:absolute;top:20px;left:20px;z-index:100;color:white;background:rgba(0,0,0,.95);padding:25px;border-radius:15px;max-width:350px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-    #players{font-size:20px;font-weight:700;margin-bottom:15px;text-align:center}
-    #chat{height:200px;overflow-y:auto;margin-bottom:15px;padding:15px;background:rgba(255,255,255,.1);border-radius:10px;font-size:14px}
-    #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:white;font-size:15px;outline:none;box-shadow:0 4px 15px rgba(0,0,0,.3)}
-    #instructions{font-size:13px;line-height:1.5;background:rgba(0,255,0,.2);padding:12px;border-radius:10px}
-    #crosshair{position:absolute;top:50%;left:50%;width:20px;height:20px;transform:translate(-50%,-50%);pointer-events:none}
-    #crosshair::before,#crosshair::after{content:'';position:absolute;border:2px solid white}
-    #crosshair::before{width:20px;height:2px;top:50%;left:0;transform:translateY(-50%)}
-    #crosshair::after{width:2px;height:20px;left:50%;top:0;transform:translateX(-50%)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{overflow:hidden;font-family:Arial;background:#87CEEB}
+    canvas{display:block}
+    #ui{position:absolute;top:20px;left:20px;color:white;background:rgba(0,0,0,.9);padding:20px;border-radius:15px;max-width:350px}
+    #players{font-size:18px;font-weight:700;margin-bottom:10px}
+    #chat{height:200px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,.1);border-radius:10px;font-size:13px}
+    #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:rgba(255,255,255,.95);font-size:14px;outline:none}
+    #instructions{font-size:12px;opacity:.9;line-height:1.4}
   </style>
 </head>
 <body>
-  <div id="crosshair"></div>
-  <div id
+  <div id="ui">
+    <div id="players">Players: 0 | Loading...</div>
+    <div id="chat">Click canvas → WASD move → Chat ENTER<br>Open 3 tabs to test multiplayer!</div>
+    <input id="chatInput" placeholder="Type → ENTER">
+    <div id="instructions">WASD=Move Mouse=Look SPACE=Jump ESC=Unlock</div>
+  </div>
+
+  <script src="https://cdn.skypack.dev/three@0.160.0"></script>
+  <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
+  <script>
+    console.clear();
+    console.log('🎮 3D MULTIPLAYER v2 - Starting...');
+    
+    // PUSHER - YOUR KEYS (replace with your real keys if needed)
+    const pusher = new Pusher('6291de89719e0ba9f19b', {cluster:'us2', forceTLS: true});
+    const channel = pusher.subscribe('world');
+    const myId = 'p' + Math.random().toString(36).slice(2,9);
+    
+    const players = {};
+    let tick = 0;
+    
+    channel.bind('pusher:subscription_succeeded', () => {
+      console.log('✅ PUSHER OK:', myId);
+      addMsg('Connected as ' + myId);
+    });
+    
+    channel.bind('move', (d) => {
+      players[d.id] = d;
+    });
+    
+    channel.bind('chat', (d) => {
+      addMsg(d.id.slice(0,6) + ': ' + d.msg);
+    });
+    
+    // THREE.JS
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0.53, 0.81, 0.92);
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    // LIGHTS
+    const ambientLight = new THREE.AmbientLight(0.4, 0.6);
+    scene.add(ambientLight);
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(10, 20, 5);
+    scene.add(sun);
+    
+    // GROUND - RAISED SLIGHTLY
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshLambertMaterial({color: 0xC8E6C9})
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0.01; // Slightly above 0
+    scene.add(ground);
+    
+    // MY PLAYER START POSITION - FIXED (above ground)
+    const me = {x: 0, y: 1.8, z: 0, r: 0};
+    
+    // Input handling
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.code] = true);
+    document.addEventListener('keyup', e => keys[e.code] = false);
+    
+    // Pointer lock
+    document.addEventListener('click', () => document.body.requestPointerLock());
+    let mouseX = 0, mouseY = 0;
+    document.addEventListener('mousemove', e => {
+      if (document.pointerLockElement) {
+        mouseX -= e.movementX * 0.002;
+        mouseY -= e.movementY * 0.002;
+        mouseY = Math.max(-Math.PI/2, Math.min(Math.PI/2, mouseY));
+      }
+    });
+    
+    // CHAT - FIXED INPUT FOCUS
+    const chatInput = document.getElementById('chatInput');
+    chatInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter' && chatInput.value.trim()) {
+        channel.trigger('client-chat', {
+          id: myId, 
+          msg: chatInput.value.trim()
+        });
+        chatInput.value = '';
+        chatInput.blur(); // Fix focus issue
+      }
+    });
+    
+    // Message system
+    function addMsg(msg) {
+      const chat = document.getElementById('chat');
+      chat.innerHTML += `<div>[${new Date().toLocaleTimeString().slice(0,5)}] ${msg}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+      document.getElementById('players').textContent = `Players: ${Object.keys(players).length + 1}`;
+    }
+    
+    // CREATE PLAYER MESH
+    function createPlayerMesh(id) {
+      const geometry = new THREE.CapsuleGeometry(0.4, 1.6, 4, 8);
+      const material = new THREE.MeshLambertMaterial({ 
+        color: Math.random() * 0xffffff 
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = 1.8; // Eye level
+      scene.add(mesh);
+      return mesh;
+    }
+    
+    // UPDATE LOOP (60fps movement)
+    function update() {
+      const speed = 0.15;
+      
+      // Movement
+      if (keys['KeyW']) me.z -= speed * Math.cos(me.r);
+      if (keys['KeyS']) me.z += speed * Math.cos(me.r);
+      if (keys['KeyA']) me.x -= speed * Math.sin(me.r);
+      if (keys['KeyD']) me.x += speed * Math.sin(me.r);
+      
+      me.r = mouseX;
+      
+      // Broadcast position (30fps)
+      if (tick % 2 === 0) {
+        channel.trigger('client-move', {
+          id: myId, 
+          x: me.x, 
+          y: me.y, 
+          z: me.z, 
+          r: me.r
+        });
+      }
+      tick++;
+    }
+    
+    // RENDER LOOP
+    function renderLoop() {
+      requestAnimationFrame(renderLoop);
+      
+      // Update other players
+      Object.keys(players).forEach(id => {
+        if (!players[id].mesh) {
+          players[id].mesh = createPlayerMesh(id);
+        }
+        const playerData = players[id];
+        const mesh = players[id].mesh;
+        if (playerData && mesh) {
+          mesh.position.set(playerData.x, playerData.y, playerData.z);
+          mesh.rotation.y = playerData.r;
+        }
+      });
+      
+      // Update camera
+      camera.position.set(me.x, me.y, me.z);
+      camera.rotation.order = 'YXZ';
+      camera.rotation.x = mouseY;
+      camera.rotation.y = me.r;
+      
+      renderer.render(scene, camera);
+    }
+    
+    // START LOOPS
+    setInterval(update, 16); // 60fps update
+    renderLoop();
+    
+    // RESIZE HANDLER
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+    
+    console.log('✅ LOADED! Click canvas → WASD move → Open 3 tabs to test!');
+  </script>
+</body>
+</html>
