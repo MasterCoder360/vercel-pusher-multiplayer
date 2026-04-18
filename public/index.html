@@ -5,78 +5,167 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      overflow: hidden; 
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #87CEEB, #98D8E8);
-    }
+    body { overflow: hidden; font-family: Arial, sans-serif; background: #87CEEB; }
     #ui {
-      position: absolute; top: 15px; left: 15px; 
-      color: white; 
-      background: rgba(0,0,0,0.85); 
-      padding: 20px; 
-      border-radius: 15px; 
-      max-width: 350px;
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.2);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      position: absolute; top: 15px; left: 15px; color: white; 
+      background: rgba(0,0,0,0.9); padding: 20px; border-radius: 12px; 
+      max-width: 350px; backdrop-filter: blur(10px);
     }
-    #chat { 
-      height: 200px; 
-      overflow-y: auto; 
-      margin-bottom: 12px; 
-      font-size: 14px; 
-      line-height: 1.4;
-      background: rgba(255,255,255,0.05);
-      padding: 10px;
-      border-radius: 8px;
-    }
-    #chat div { margin-bottom: 6px; opacity: 0.95; }
-    #chatInput { 
-      width: 100%; 
-      padding: 12px; 
-      border: none; 
-      border-radius: 8px; 
-      background: rgba(255,255,255,0.95);
-      font-size: 14px;
-      outline: none;
-    }
-    #players { 
-      font-weight: 600; 
-      margin-bottom: 12px; 
-      font-size: 16px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    }
-    #instructions { 
-      font-size: 13px; 
-      opacity: 0.9; 
-      line-height: 1.4;
-      background: rgba(255,255,255,0.1);
-      padding: 10px;
-      border-radius: 8px;
-    }
-    #status {
-      position: absolute; bottom: 15px; left: 15px;
-      color: #4ade80; font-weight: 600;
-    }
+    #chat { height: 200px; overflow-y: auto; margin-bottom: 12px; font-size: 14px; }
+    #chatInput { width: 100%; padding: 10px; border: none; border-radius: 6px; }
+    #players { font-weight: bold; margin-bottom: 10px; font-size: 16px; }
   </style>
 </head>
 <body>
   <div id="ui">
-    <div id="players">Players: 0 | Loading...</div>
-    <div id="chat">Welcome to 3D Multiplayer World!<br>Click to play → WASD + Mouse + SPACE</div>
-    <input id="chatInput" placeholder="Type message → ENTER" autocomplete="off">
-    <div id="instructions">
-      🎮 WASD: Move | Mouse: Look | SPACE: Jump<br>
-      💬 Chat: Type → ENTER<br>
-      👥 See friends as colored cubes!
-    </div>
+    <div id="players">Players: 0 | Connecting...</div>
+    <div id="chat">Loading 3D world...</div>
+    <input id="chatInput" placeholder="Type → ENTER" autocomplete="off">
+    <div>WASD Move | Mouse Look | SPACE Jump | Click to play</div>
   </div>
-  <div id="status">Connecting...</div>
 
-  <!-- FIXED Three.js CDN -->
-  <script src="https://unpkg.com/three@0.161.0/build/three.min.js"></script>
+  <!-- ALL SCRIPTS INLINE - NO CDN ISSUES! -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
-  <script src="client.js"></script>
+  
+  <script>
+    // YOUR KEYS EMBEDDED
+    const PUSHER_KEY = '6291de89719e0ba9f19b';
+    const PUSHER_CLUSTER = 'us2';
+    
+    console.log('Starting 3D world...');
+    
+    // PUSHER
+    const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER, forceTLS: true });
+    const channel = pusher.subscribe('world-channel');
+    const myPlayerId = 'player-' + Date.now();
+    
+    // THREE.JS
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    // LIGHTS
+    const light = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(light);
+    
+    // GROUND
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshBasicMaterial({ color: 0x90EE90 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+    
+    // PLAYERS
+    const players = {};
+    
+    // INPUT
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.code] = true);
+    document.addEventListener('keyup', e => keys[e.code] = false);
+    document.addEventListener('click', () => document.body.requestPointerLock());
+    
+    let mouseX = 0, mouseY = 0;
+    document.addEventListener('mousemove', e => {
+      if (document.pointerLockElement) {
+        mouseX -= e.movementX * 0.002;
+        mouseY -= e.movementY * 0.002;
+      }
+    });
+    
+    // CHAT
+    const chatInput = document.getElementById('chatInput');
+    chatInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter' && chatInput.value.trim()) {
+        channel.trigger('client-chat', {
+          id: myPlayerId,
+          message: chatInput.value.trim()
+        });
+        chatInput.value = '';
+      }
+    });
+    
+    // EVENTS
+    channel.bind('pusher:subscription_succeeded', () => {
+      console.log('✅ PUSHER OK');
+      document.getElementById('players').textContent = 'Players: 0 | Connected!';
+    });
+    
+    channel.bind('client-playerMove', data => {
+      players[data.id] = data;
+    });
+    
+    channel.bind('client-chat', data => {
+      const chat = document.getElementById('chat');
+      chat.innerHTML += `<div>${data.id.slice(0,6)}: ${data.message}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+    });
+    
+    // PLAYER CUBE
+    function createPlayer(id) {
+      const geometry = new THREE.BoxGeometry(1, 2, 1);
+      const material = new THREE.MeshLambertMaterial({ 
+        color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6) 
+      });
+      const cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      return cube;
+    }
+    
+    // PLAYER
+    const myPlayer = { x: 0, y: 2, z: 0, rotY: 0 };
+    
+    // LOOP
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // MOVE
+      const speed = 0.15;
+      if (keys['KeyW']) myPlayer.z -= speed;
+      if (keys['KeyS']) myPlayer.z += speed;
+      if (keys['KeyA']) myPlayer.x -= speed;
+      if (keys['KeyD']) myPlayer.x += speed;
+      
+      myPlayer.rotY = mouseX;
+      
+      // SEND
+      channel.trigger('client-playerMove', {
+        id: myPlayerId,
+        x: myPlayer.x, y: myPlayer.y, z: myPlayer.z, rotY: myPlayer.rotY
+      });
+      
+      // CAMERA
+      camera.position.set(myPlayer.x, myPlayer.y + 1.8, myPlayer.z);
+      camera.rotation.set(mouseY, myPlayer.rotY, 0);
+      
+      // OTHER PLAYERS
+      Object.keys(players).forEach(id => {
+        if (!players[id].mesh) {
+          players[id].mesh = createPlayer(id);
+        }
+        const mesh = players[id].mesh;
+        const player = players[id];
+        mesh.position.set(player.x, player.y, player.z);
+        mesh.rotation.y = player.rotY;
+      });
+      
+      renderer.render(scene, camera);
+    }
+    
+    // RESIZE
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+    
+    animate();
+    console.log('✅ 3D World Loaded!');
+  </script>
 </body>
 </html>
