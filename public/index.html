@@ -1,144 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>3D Multiplayer - FIXED FOREVER</title>
+  <title>3D Multiplayer - NO CDN DEPENDENCIES</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}body{overflow:hidden;font-family:Arial;background:#87CEEB}canvas{display:block}#ui{position:absolute;top:20px;left:20px;color:white;background:rgba(0,0,0,.9);padding:20px;border-radius:15px;max-width:350px}#players{font-size:18px;font-weight:700;margin-bottom:10px}#chat{height:200px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,.1);border-radius:10px;font-size:13px}#chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:rgba(255,255,255,.95);font-size:14px;outline:none}#instructions{font-size:12px;opacity:.9;line-height:1.4}
+    *{margin:0;padding:0;overflow:hidden;box-sizing:border-box}
+    body{font-family:Arial;background:linear-gradient(135deg,#87CEEB,#98D8C8)}
+    canvas{display:block;width:100vw;height:100vh}
+    #ui{position:absolute;top:20px;left:20px;z-index:100;color:white;background:rgba(0,0,0,.95);padding:25px;border-radius:15px;max-width:350px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+    #players{font-size:20px;font-weight:700;margin-bottom:15px;text-align:center}
+    #chat{height:200px;overflow-y:auto;margin-bottom:15px;padding:15px;background:rgba(255,255,255,.1);border-radius:10px;font-size:14px}
+    #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:white;font-size:15px;outline:none;box-shadow:0 4px 15px rgba(0,0,0,.3)}
+    #instructions{font-size:13px;line-height:1.5;background:rgba(0,255,0,.2);padding:12px;border-radius:10px}
+    #crosshair{position:absolute;top:50%;left:50%;width:20px;height:20px;transform:translate(-50%,-50%);pointer-events:none}
+    #crosshair::before,#crosshair::after{content:'';position:absolute;border:2px solid white}
+    #crosshair::before{width:20px;height:2px;top:50%;left:0;transform:translateY(-50%)}
+    #crosshair::after{width:2px;height:20px;left:50%;top:0;transform:translateX(-50%)}
   </style>
 </head>
 <body>
-  <div id="ui">
-    <div id="players">Players: 0 | Loading...</div>
-    <div id="chat">Click canvas → WASD move → Chat ENTER<br>Open 3 tabs to test multiplayer!</div>
-    <input id="chatInput" placeholder="Type → ENTER">
-    <div id="instructions">WASD=Move Mouse=Look SPACE=Jump ESC=Unlock</div>
-  </div>
-
-  <script src="https://cdn.skypack.dev/three@0.160.0"></script>
-  <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
-  <script>
-    console.clear();
-    console.log('🎮 3D MULTIPLAYER v2 - Starting...');
-    
-    // PUSHER - YOUR KEYS
-    const pusher=new Pusher('6291de89719e0ba9f19b',{cluster:'us2',forceTLS:!0});
-    const channel=pusher.subscribe('world');
-    const myId='p'+Math.random().toString(36).slice(2,9);
-    
-    const players={};
-    let tick=0;
-    
-    channel.bind('pusher:subscription_succeeded',()=>{console.log('✅ PUSHER OK:',myId);addMsg('Connected '+myId)});
-    channel.bind('move',(d)=>{players[d.id]=d});
-    channel.bind('chat',(d)=>{addMsg(d.id.slice(0,6)+': '+d.msg)});
-    
-    // THREE.JS
-    const s=new THREE.Scene();
-    s.background=new THREE.Color(.53,.81,.92);
-    const c=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1e3);
-    const r=new THREE.WebGLRenderer({antialias:!0});
-    r.setSize(innerWidth,innerHeight);
-    document.body.appendChild(r.domElement);
-    
-    // LIGHT
-    s.add(new THREE.AmbientLight(.4,.6));
-    const sun=new THREE.DirectionalLight(1,.8);
-    sun.position.set(10,20,5);
-    s.add(sun);
-    
-    // GROUND
-    const g=new THREE.Mesh(
-      new THREE.PlaneGeometry(100,100),
-      new THREE.MeshLambertMaterial({color:.78,.9,.78})
-    );
-    g.rotation.x=-Math.PI/2;
-    s.add(g);
-    
-    // PLAYER CUBE
-    function mkPlayer(id){
-      const m=new THREE.Mesh(
-        new THREE.BoxGeometry(1,2,1),
-        new THREE.MeshLambertMaterial({color:Math.random()*16777215})
-      );
-      s.add(m);
-      return m;
-    }
-    
-    // MY PLAYER
-    const me={x:0,y:1.8,z:0,r:0};
-    const k={};
-    
-    addEventListener('keydown',e=>k[e.code]=1);
-    addEventListener('keyup',e=>k[e.code]=0);
-    addEventListener('click',()=>document.body.requestPointerLock());
-    
-    let mx=0,my=0;
-    addEventListener('mousemove',e=>{
-      if(document.pointerLockElement){
-        mx-=e.movementX*.002;
-        my-=e.movementY*.002;
-        my=Math.max(-Math.PI/2,Math.min(Math.PI/2,my))
-      }
-    });
-    
-    // CHAT FIXED
-    const ci=document.getElementById('chatInput');
-    ci.addEventListener('keypress',e=>{
-      if(e.key==='Enter'&&ci.value.trim()){
-        channel.trigger('chat',{id:myId,msg:ci.value.trim()});
-        ci.value='';
-      }
-    });
-    
-    function addMsg(m){
-      const ch=document.getElementById('chat');
-      ch.innerHTML+=`<div>[${new Date().toLocaleTimeString().slice(0,5)}] ${m}</div>`;
-      ch.scrollTop=ch.scrollHeight;
-      document.getElementById('players').textContent=`Players: ${Object.keys(players).length+1}`;
-    }
-    
-    // UPDATE LOOP 30fps
-    setInterval(()=>{
-      const s=.12;
-      if(k['KeyW'])me.z-=s;
-      if(k['KeyS'])me.z+=s;
-      if(k['KeyA'])me.x-=s;
-      if(k['KeyD'])me.x+=s;
-      me.r=mx;
-      
-      // BROADCAST
-      channel.trigger('move',{id:myId,x:me.x,y:me.y,z:me.z,r:me.r});
-    },33);
-    
-    // RENDER
-    function loop(){
-      requestAnimationFrame(loop);
-      
-      // UPDATE PLAYERS
-      Object.keys(players).forEach(id=>{
-        if(!players[id].mesh)players[id].mesh=mkPlayer(id);
-        const m=players[id].mesh,p=players[id];
-        if(p)m.position.set(p.x,p.y,p.z),m.rotation.y=p.r;
-      });
-      
-      // CAMERA
-      c.position.set(me.x,me.y+1.6,me.z);
-      c.rotation.order='YXZ';
-      c.rotation.x=my;
-      c.rotation.y=me.r;
-      
-      r.render(s,c);
-    }
-    
-    addEventListener('resize',()=>{
-      c.aspect=innerWidth/innerHeight;
-      c.updateProjectionMatrix();
-      r.setSize(innerWidth,innerHeight);
-    });
-    
-    loop();
-    console.log('✅ LOADED! Test: Open 3 tabs → WASD → SEE CUBES!');
-  </script>
-</body>
-</html>
+  <div id="crosshair"></div>
+  <div id
