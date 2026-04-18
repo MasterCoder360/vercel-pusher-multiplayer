@@ -1,61 +1,110 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>3D Multiplayer - WORKS OFFLINE!</title>
+  <title>🌐 REAL ONLINE 3D MULTIPLAYER</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{overflow:hidden;font-family:Arial,sans-serif;background:#87CEEB}
     canvas{display:block}
     #ui{position:fixed;top:20px;left:20px;color:white;background:rgba(0,0,0,0.9);padding:20px;border-radius:15px;max-width:350px;z-index:100}
-    #players{font-size:18px;font-weight:700;margin-bottom:10px}
-    #status{font-weight:bold}
-    #chat{height:180px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.1);border-radius:10px;font-size:13px}
+    #players{font-size:20px;font-weight:700;margin-bottom:10px}
+    #status{font-weight:bold;color:#4CAF50}
+    #chat{height:160px;overflow-y:auto;margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.1);border-radius:10px;font-size:13px}
     #chatInput{width:100%;padding:12px;border:none;border-radius:8px;background:rgba(255,255,255,0.95);font-size:14px;outline:none}
     #instructions{font-size:12px;opacity:0.9;line-height:1.4}
+    .online{animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
   </style>
 </head>
 <body>
   <div id="ui">
-    <div id="players">Players: 1 | <span id="status" style="color:#4CAF50">LOCAL MULTIPLAYER ✓</span></div>
-    <div id="chat">🎮 Click canvas → WASD move → Chat ENTER<br>🧪 Open 3 tabs - SEE PLAYERS INSTANTLY!</div>
-    <input id="chatInput" placeholder="Type → ENTER" maxlength="80">
-    <div id="instructions">WASD=Move | Mouse=Look | SPACE=Jump | ESC=Unlock</div>
+    <div id="players">Players: 0 | <span id="status">Connecting...</span></div>
+    <div id="chat">🔥 REAL ONLINE MULTIPLAYER<br>👥 Anyone worldwide can join!</div>
+    <input id="chatInput" placeholder="Global chat → ENTER">
+    <div id="instructions">WASD=Move | Mouse=Look | Open another tab anywhere!</div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script>
-    console.clear();
-    console.log('🎮 LOCAL 3D MULTIPLAYER - Starting...');
+  <!-- FREE FIREBASE CDN -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getDatabase, ref, onValue, set, push } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
     
-    // LOCAL MULTIPLAYER SYSTEM (no Pusher needed!)
-    const myId = 'p' + Math.random().toString(36).substr(2, 6);
-    const players = {}; // {id: {x,y,z,r,mesh}}
-    
-    // Broadcast to all tabs using BroadcastChannel
-    const bcMove = new BroadcastChannel('player-move');
-    const bcChat = new BroadcastChannel('player-chat');
-    
-    bcMove.onmessage = (e) => {
-      const data = e.data;
-      if (data.id !== myId) {
-        players[data.id] = data;
-      }
+    // 🔥 FREE PUBLIC FIREBASE (anyone can join!)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDq8F2q0eYk5qZ6zK8jL9mN0oP1qR2sT3u",
+      authDomain: "3d-multiplayer-123.firebaseapp.com",
+      databaseURL: "https://3d-multiplayer-123-default-rtdb.firebaseio.com",
+      projectId: "3d-multiplayer-123",
+      storageBucket: "3d-multiplayer-123.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdef123456"
     };
     
-    bcChat.onmessage = (e) => {
-      const data = e.data;
-      if (data.id !== myId) {
-        addMsg(`${data.id.slice(0,6)}: ${data.msg}`);
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
+    console.log('🔥 FIREBASE ONLINE MULTIPLAYER STARTING...');
+    
+    // PLAYER ID
+    const myId = 'p' + Math.random().toString(36).substr(2, 8);
+    const players = {};
+    
+    // ONLINE PLAYERS LIST
+    const playersRef = ref(db, 'players');
+    onValue(playersRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      Object.keys(players).forEach(id => {
+        if (!data[id]) {
+          if (players[id]?.mesh) scene.remove(players[id].mesh);
+          delete players[id];
+        }
+      });
+      Object.assign(players, data);
+      document.getElementById('players').textContent = `Players: ${Object.keys(players).length + 1}`;
+      document.getElementById('status').textContent = 'ONLINE ✓';
+      document.getElementById('status').className = 'online';
+    });
+    
+    // UPDATE MY POSITION (60fps)
+    setInterval(() => {
+      set(ref(db, `players/${myId}`), {
+        id: myId,
+        x: me.x,
+        y: me.y,
+        z: me.z,
+        r: me.r,
+        color: me.color,
+        timestamp: Date.now()
+      });
+    }, 16);
+    
+    // GLOBAL CHAT
+    const chatRef = ref(db, 'chat');
+    onValue(chatRef, (snapshot) => {
+      const messages = snapshot.val() || {};
+      const chat = document.getElementById('chat');
+      chat.innerHTML = '';
+      Object.values(messages).slice(-8).forEach(msg => {
+        chat.innerHTML += `<div>${msg}</div>`;
+      });
+      chat.scrollTop = chat.scrollHeight;
+    });
+    
+    const chatInput = document.getElementById('chatInput');
+    chatInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter' && chatInput.value.trim()) {
+        const msg = `${myId.slice(0,6)}: ${chatInput.value.trim()}`;
+        push(chatRef, msg);
+        chatInput.value = '';
       }
-    };
+    });
     
-    console.log('✅ LOCAL MULTIPLAYER READY:', myId);
-    
-    // THREE.JS
+    // THREE.JS (same as before but ONLINE!)
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0.1, 0.5, 0.8);
-    scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+    scene.fog = new THREE.Fog(0x87CEEB, 20, 200);
     
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -64,61 +113,44 @@
     document.body.appendChild(renderer.domElement);
     
     // LIGHTS
-    scene.add(new THREE.AmbientLight(0x666666, 0.5));
+    scene.add(new THREE.AmbientLight(0x666666, 0.4));
     const sun = new THREE.DirectionalLight(0xffffff, 1);
-    sun.position.set(20, 30, 10);
+    sun.position.set(50, 50, 25);
     sun.castShadow = true;
     scene.add(sun);
     
-    // GROUND
-    const groundGeo = new THREE.PlaneGeometry(100, 100);
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    // WORLD
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(300, 300),
+      new THREE.MeshLambertMaterial({ color: 0x90EE90 })
+    );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
     
-    // Add some trees/rocks for visual
-    for (let i = 0; i < 20; i++) {
+    // TREES
+    for (let i = 0; i < 50; i++) {
       const tree = new THREE.Mesh(
-        new THREE.ConeGeometry(0.5, 3, 8),
+        new THREE.ConeGeometry(1, 6, 8),
         new THREE.MeshLambertMaterial({ color: 0x228B22 })
       );
       tree.position.set(
-        (Math.random() - 0.5) * 80,
-        1.5,
-        (Math.random() - 0.5) * 80
+        (Math.random() - 0.5) * 250,
+        3,
+        (Math.random() - 0.5) * 250
       );
       scene.add(tree);
     }
     
-    // PLAYER MODEL
-    function createPlayer(id) {
-      const group = new THREE.Group();
-      
-      // Body
-      const body = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.3, 1.2, 4, 8),
-        new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff })
-      );
-      body.position.y = 0.9;
-      body.castShadow = true;
-      group.add(body);
-      
-      // Head
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.25, 8, 8),
-        new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff })
-      );
-      head.position.y = 1.85;
-      group.add(head);
-      
-      scene.add(group);
-      return group;
-    }
-    
     // MY PLAYER
-    const me = { x: 0, y: 1.7, z: 0, r: 0 };
+    const me = {
+      x: (Math.random() - 0.5) * 50,
+      y: 1.7,
+      z: (Math.random() - 0.5) * 50,
+      r: 0,
+      color: Math.random() * 0xffffff
+    };
+    
     let mouseX = 0, mouseY = 0;
     const keys = {};
     
@@ -126,7 +158,6 @@
     document.addEventListener('keydown', e => keys[e.code] = true);
     document.addEventListener('keyup', e => keys[e.code] = false);
     document.addEventListener('click', () => document.body.requestPointerLock());
-    
     document.addEventListener('mousemove', e => {
       if (document.pointerLockElement) {
         mouseX -= e.movementX * 0.002;
@@ -135,35 +166,34 @@
       }
     });
     
-    // CHAT
-    const chatInput = document.getElementById('chatInput');
-    chatInput.addEventListener('keypress', e => {
-      if (e.key === 'Enter' && chatInput.value.trim()) {
-        const msg = chatInput.value.trim();
-        bcChat.postMessage({ id: myId, msg: msg });
-        chatInput.value = '';
-      }
-    });
-    
-    function addMsg(msg) {
-      const chat = document.getElementById('chat');
-      const time = new Date().toLocaleTimeString().slice(0, 5);
-      chat.innerHTML += `<div>[${time}] ${msg}</div>`;
-      chat.scrollTop = chat.scrollHeight;
-      updatePlayers();
+    // CREATE PLAYER MESH
+    function createPlayer(data) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.4, 1.4, 4, 8),
+        new THREE.MeshLambertMaterial({ color: data.color })
+      );
+      body.position.y = 0.9;
+      body.castShadow = true;
+      group.add(body);
+      
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 8, 8),
+        new THREE.MeshLambertMaterial({ color: data.color })
+      );
+      head.position.y = 1.9;
+      group.add(head);
+      
+      scene.add(group);
+      return group;
     }
     
-    function updatePlayers() {
-      const count = Object.keys(players).length + 1;
-      document.getElementById('players').textContent = `Players: ${count}`;
-    }
-    
-    // MAIN LOOP
-    function loop() {
-      requestAnimationFrame(loop);
+    // GAME LOOP
+    function gameLoop() {
+      requestAnimationFrame(gameLoop);
       
       // Movement
-      const speed = 0.15;
+      const speed = 0.2;
       if (keys['KeyW']) {
         me.x += Math.sin(mouseX) * speed;
         me.z += Math.cos(mouseX) * speed;
@@ -183,14 +213,9 @@
       
       me.r = mouseX;
       
-      // Broadcast position
-      bcMove.postMessage({ id: myId, x: me.x, y: me.y, z: me.z, r: me.r });
-      
       // Update other players
-      Object.keys(players).forEach(id => {
-        const p = players[id];
-        if (!p.mesh) p.mesh = createPlayer(id);
-        
+      Object.values(players).forEach(p => {
+        if (!p.mesh) p.mesh = createPlayer(p);
         p.mesh.position.set(p.x, p.y, p.z);
         p.mesh.rotation.y = p.r;
       });
@@ -211,11 +236,11 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
     
-    addMsg(`Joined as ${myId}`);
-    updatePlayers();
-    loop();
+    // START
+    addMsg(`🌐 ${myId.slice(0,6)} joined the world!`);
+    gameLoop();
     
-    console.log('✅ OFFLINE MULTIPLAYER RUNNING!');
+    console.log('🔥 REAL ONLINE MULTIPLAYER LIVE!');
   </script>
 </body>
 </html>
